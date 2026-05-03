@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RRR – Free AI Video Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #18181f;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #f0f0f8;
+    --muted: rgba(240,240,248,0.45);
+    --accent: #7c5cfa;
+    --accent2: #e05cfa;
+    --grad: linear-gradient(135deg, #7c5cfa, #e05cfa);
+    --font-head: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --radius: 14px;
+    --radius-lg: 22px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  /* ── GLOW BLOBS ── */
+  .blob {
+    position: fixed; border-radius: 50%; filter: blur(120px); pointer-events: none; z-index: 0;
+  }
+  .blob-1 { width: 500px; height: 500px; background: #7c5cfa22; top: -100px; left: -100px; }
+  .blob-2 { width: 400px; height: 400px; background: #e05cfa18; bottom: -80px; right: -80px; }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 5%;
+    height: 64px;
+    background: rgba(10,10,15,0.82);
+    backdrop-filter: blur(18px);
+    border-bottom: 0.5px solid var(--border);
+  }
+  .logo {
+    font-family: var(--font-head); font-size: 22px; font-weight: 800;
+    background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text; letter-spacing: -0.5px;
+  }
+  .nav-links { display: flex; gap: 32px; align-items: center; }
+  .nav-links a {
+    color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .btn-nav {
+    background: var(--grad); color: #fff; border: none; padding: 8px 20px;
+    border-radius: 50px; font-size: 13px; font-weight: 600; cursor: pointer;
+    font-family: var(--font-body); transition: opacity 0.2s;
+  }
+  .btn-nav:hover { opacity: 0.85; }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative; z-index: 1;
+    padding: 160px 5% 80px;
+    text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 28px;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(124,92,250,0.12); border: 0.5px solid rgba(124,92,250,0.35);
+    padding: 5px 14px; border-radius: 50px; font-size: 12px; font-weight: 500; color: #a98bfb;
+  }
+  .hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #7c5cfa; animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+
+  h1 {
+    font-family: var(--font-head); font-size: clamp(40px, 6vw, 80px);
+    font-weight: 800; line-height: 1.08; letter-spacing: -2px;
+    max-width: 800px;
+  }
+  h1 span { background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+  .hero-sub {
+    font-size: 18px; color: var(--muted); max-width: 520px; line-height: 1.7;
+    font-weight: 300;
+  }
+
+  .hero-cta { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  .btn-primary {
+    background: var(--grad); color: #fff; border: none; padding: 14px 34px;
+    border-radius: 50px; font-size: 15px; font-weight: 600; cursor: pointer;
+    font-family: var(--font-body); transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 0 32px rgba(124,92,250,0.35);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 48px rgba(124,92,250,0.5); }
+  .btn-outline {
+    background: transparent; color: var(--text); border: 0.5px solid var(--border2);
+    padding: 14px 34px; border-radius: 50px; font-size: 15px; font-weight: 500; cursor: pointer;
+    font-family: var(--font-body); transition: border-color 0.2s, background 0.2s;
+  }
+  .btn-outline:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.04); }
+
+  /* ── GENERATOR CARD ── */
+  .section { position: relative; z-index: 1; padding: 0 5% 80px; }
+
+  .gen-card {
+    background: var(--bg2);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius-lg);
+    max-width: 820px; margin: 0 auto;
+    overflow: hidden;
+  }
+  .gen-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 28px; border-bottom: 0.5px solid var(--border);
+    font-size: 13px; color: var(--muted); font-weight: 500;
+  }
+  .gen-header .title { font-family: var(--font-head); color: var(--text); font-size: 15px; font-weight: 700; }
+  .free-badge {
+    background: rgba(0,200,100,0.12); border: 0.5px solid rgba(0,200,100,0.3);
+    color: #3de89a; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 50px;
+    letter-spacing: 0.5px;
+  }
+  .gen-body { padding: 28px; display: flex; flex-direction: column; gap: 20px; }
+
+  /* prompt area */
+  .prompt-wrap { position: relative; }
+  textarea {
+    width: 100%; background: var(--bg3); border: 0.5px solid var(--border2);
+    border-radius: var(--radius); color: var(--text); font-family: var(--font-body);
+    font-size: 15px; padding: 16px 20px; resize: none; outline: none;
+    line-height: 1.6; min-height: 110px; transition: border-color 0.2s;
+  }
+  textarea::placeholder { color: var(--muted); }
+  textarea:focus { border-color: rgba(124,92,250,0.5); }
+
+  .char-count { position: absolute; bottom: 12px; right: 16px; font-size: 11px; color: var(--muted); }
+
+  /* controls row */
+  .controls-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .select-wrap { flex: 1; min-width: 140px; position: relative; }
+  .select-wrap label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.5px; display: block; margin-bottom: 6px; }
+  select {
+    width: 100%; background: var(--bg3); border: 0.5px solid var(--border2);
+    border-radius: 10px; color: var(--text); font-family: var(--font-body); font-size: 13px;
+    padding: 10px 14px; outline: none; appearance: none; cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  select:focus { border-color: rgba(124,92,250,0.5); }
+
+  /* style chips */
+  .chips-label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.5px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .chip {
+    padding: 6px 14px; border-radius: 50px; font-size: 12px; font-weight: 500;
+    border: 0.5px solid var(--border2); color: var(--muted); cursor: pointer;
+    background: transparent; transition: all 0.18s; font-family: var(--font-body);
+  }
+  .chip:hover { border-color: rgba(124,92,250,0.4); color: #a98bfb; }
+  .chip.active { background: rgba(124,92,250,0.15); border-color: rgba(124,92,250,0.5); color: #c4aafb; }
+
+  /* generate button */
+  .gen-btn-wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .hint { font-size: 12px; color: var(--muted); }
+  .hint span { color: #3de89a; font-weight: 600; }
+  .btn-generate {
+    background: var(--grad); color: #fff; border: none;
+    padding: 13px 32px; border-radius: 50px; font-size: 14px; font-weight: 700;
+    cursor: pointer; font-family: var(--font-head); letter-spacing: 0.3px;
+    transition: transform 0.2s, box-shadow 0.2s; display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 0 24px rgba(124,92,250,0.3);
+  }
+  .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 0 40px rgba(124,92,250,0.5); }
+  .btn-generate:disabled { opacity: 0.5; transform: none; cursor: not-allowed; }
+
+  /* ── PROGRESS ── */
+  .progress-section { display: none; padding: 24px 28px; border-top: 0.5px solid var(--border); }
+  .progress-section.show { display: block; }
+  .progress-label { font-size: 13px; color: var(--muted); margin-bottom: 10px; display: flex; justify-content: space-between; }
+  .progress-bar-track { background: var(--bg3); border-radius: 50px; height: 6px; overflow: hidden; }
+  .progress-bar-fill {
+    height: 100%; border-radius: 50px;
+    background: var(--grad);
+    width: 0%; transition: width 0.4s ease;
+  }
+  .progress-steps { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .step-item { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+  .step-item.done { color: #3de89a; }
+  .step-item.active { color: var(--text); }
+  .step-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); flex-shrink: 0; }
+  .step-item.done .step-dot { background: #3de89a; }
+  .step-item.active .step-dot { background: #7c5cfa; box-shadow: 0 0 6px #7c5cfa; animation: pulse 1.2s infinite; }
+
+  /* ── VIDEO RESULT ── */
+  .result-section { display: none; padding: 24px 28px; border-top: 0.5px solid var(--border); }
+  .result-section.show { display: block; }
+  .video-wrap {
+    background: #000; border-radius: var(--radius); overflow: hidden;
+    aspect-ratio: 16/9; position: relative; display: flex; align-items: center; justify-content: center;
+  }
+  .video-placeholder {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    color: var(--muted); font-size: 14px;
+  }
+  .video-icon {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: rgba(124,92,250,0.15); border: 0.5px solid rgba(124,92,250,0.3);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .play-tri { width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 18px solid #7c5cfa; margin-left: 4px; }
+  .result-actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .btn-action {
+    flex: 1; min-width: 120px; padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: var(--font-body); transition: all 0.18s;
+    border: 0.5px solid var(--border2); background: var(--bg3); color: var(--text);
+  }
+  .btn-action:hover { border-color: var(--border2); background: rgba(255,255,255,0.05); }
+  .btn-action.primary { background: var(--grad); border: none; color: #fff; }
+
+  /* ── FEATURES ── */
+  .features { position: relative; z-index: 1; padding: 60px 5% 80px; }
+  .section-label {
+    text-align: center; font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    color: var(--muted); margin-bottom: 16px;
+  }
+  h2 {
+    font-family: var(--font-head); font-size: clamp(28px, 4vw, 48px);
+    font-weight: 800; text-align: center; letter-spacing: -1px; margin-bottom: 52px;
+  }
+  h2 span { background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+  .feat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; max-width: 1000px; margin: 0 auto; }
+  .feat-card {
+    background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+    padding: 28px; transition: border-color 0.2s, transform 0.2s;
+  }
+  .feat-card:hover { border-color: rgba(124,92,250,0.3); transform: translateY(-4px); }
+  .feat-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: rgba(124,92,250,0.12); border: 0.5px solid rgba(124,92,250,0.25);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 18px;
+    font-size: 20px;
+  }
+  .feat-card h3 { font-family: var(--font-head); font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .feat-card p { font-size: 13px; color: var(--muted); line-height: 1.65; }
+
+  /* ── GALLERY ── */
+  .gallery { position: relative; z-index: 1; padding: 0 5% 80px; }
+  .vid-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; max-width: 1000px; margin: 0 auto; }
+  .vid-thumb {
+    border-radius: var(--radius); overflow: hidden; position: relative;
+    aspect-ratio: 16/9; cursor: pointer;
+    background: linear-gradient(135deg, var(--bg3), var(--bg2));
+    border: 0.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.2s;
+  }
+  .vid-thumb:hover { transform: scale(1.02); }
+  .vid-thumb .overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.5);
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 12px; opacity: 0; transition: opacity 0.2s;
+  }
+  .vid-thumb:hover .overlay { opacity: 1; }
+  .vid-label { font-size: 11px; font-weight: 600; color: #fff; }
+  .vid-emoji { font-size: 28px; }
+  .vid-tag {
+    position: absolute; top: 8px; left: 8px;
+    background: rgba(0,0,0,0.6); border-radius: 50px; padding: 3px 8px; font-size: 10px; color: #fff;
+  }
+
+  /* ── STATS ── */
+  .stats { position: relative; z-index: 1; padding: 0 5% 80px; }
+  .stats-inner {
+    background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+    max-width: 820px; margin: 0 auto; padding: 48px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 40px; text-align: center;
+  }
+  .stat-num { font-family: var(--font-head); font-size: 42px; font-weight: 800; background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  /* ── FAQ ── */
+  .faq { position: relative; z-index: 1; padding: 0 5% 80px; max-width: 680px; margin: 0 auto; }
+  .faq-item { border-bottom: 0.5px solid var(--border); padding: 20px 0; cursor: pointer; }
+  .faq-q { font-family: var(--font-head); font-size: 16px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .faq-q::after { content: '+'; font-size: 20px; color: var(--muted); flex-shrink: 0; transition: transform 0.2s; }
+  .faq-item.open .faq-q::after { content: '−'; }
+  .faq-a { font-size: 14px; color: var(--muted); line-height: 1.7; display: none; margin-top: 12px; }
+  .faq-item.open .faq-a { display: block; }
+
+  /* ── FOOTER ── */
+  footer {
+    position: relative; z-index: 1; text-align: center;
+    padding: 40px 5%; border-top: 0.5px solid var(--border);
+    font-size: 13px; color: var(--muted);
+  }
+  footer .logo-sm { font-family: var(--font-head); font-weight: 800; font-size: 18px; background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 12px; }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+
+  @media(max-width: 600px) {
+    nav { padding: 0 4%; }
+    .nav-links { display: none; }
+    .hero { padding: 120px 4% 60px; }
+    .gen-body, .gen-header { padding: 20px 18px; }
+    .stats-inner { padding: 28px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">RRR</div>
+  <div class="nav-links">
+    <a href="#generate">Generate</a>
+    <a href="#gallery">Gallery</a>
+    <a href="#faq">FAQ</a>
+    <a href="https://github.com" target="_blank">GitHub</a>
+  </div>
+  <button class="btn-nav" onclick="scrollToGen()">Start Free →</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge"><span class="dot"></span> 100% Free · No Login Required</div>
+  <h1>Generate <span>AI Videos</span> from Text, Instantly</h1>
+  <p class="hero-sub">Type your idea. Watch it come to life. No limits, no subscriptions — completely free for everyone.</p>
+  <div class="hero-cta">
+    <button class="btn-primary" onclick="scrollToGen()">Generate Video Free →</button>
+    <button class="btn-outline" onclick="document.getElementById('gallery').scrollIntoView({behavior:'smooth'})">See Examples</button>
+  </div>
+</section>
+
+<!-- GENERATOR -->
+<section class="section" id="generate">
+  <div class="gen-card">
+    <div class="gen-header">
+      <span class="title">AI Video Generator</span>
+      <span class="free-badge">FREE</span>
+    </div>
+    <div class="gen-body">
+      <!-- Prompt -->
+      <div class="prompt-wrap">
+        <textarea id="promptInput" maxlength="600" placeholder="Describe your video... e.g. 'A golden sunset over a mountain lake, slow cinematic pan, photorealistic'" rows="4"></textarea>
+        <span class="char-count" id="charCount">0 / 600</span>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls-row">
+        <div class="select-wrap">
+          <label>DURATION</label>
+          <select id="duration">
+            <option value="4">4 seconds</option>
+            <option value="8" selected>8 seconds</option>
+            <option value="16">16 seconds</option>
+            <option value="32">32 seconds</option>
+          </select>
+        </div>
+        <div class="select-wrap">
+          <label>ASPECT RATIO</label>
+          <select id="aspect">
+            <option value="16:9" selected>16:9 – Landscape</option>
+            <option value="9:16">9:16 – Portrait</option>
+            <option value="1:1">1:1 – Square</option>
+          </select>
+        </div>
+        <div class="select-wrap">
+          <label>QUALITY</label>
+          <select id="quality">
+            <option value="720p">720p</option>
+            <option value="1080p" selected>1080p HD</option>
+            <option value="4k">4K Ultra</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Style chips -->
+      <div>
+        <div class="chips-label">VISUAL STYLE</div>
+        <div class="chips" id="styleChips">
+          <button class="chip active" data-style="cinematic">Cinematic</button>
+          <button class="chip" data-style="anime">Anime</button>
+          <button class="chip" data-style="3d">3D Render</button>
+          <button class="chip" data-style="realistic">Realistic</button>
+          <button class="chip" data-style="cartoon">Cartoon</button>
+          <button class="chip" data-style="watercolor">Watercolor</button>
+          <button class="chip" data-style="retro">Retro</button>
+        </div>
+      </div>
+
+      <!-- Generate -->
+      <div class="gen-btn-wrap">
+        <div class="hint">✦ <span>Unlimited</span> free generations · No sign-up needed</div>
+        <button class="btn-generate" id="genBtn" onclick="startGenerate()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5,3 19,12 5,21"/></svg>
+          Generate Video
+        </button>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-section" id="progressSection">
+      <div class="progress-label">
+        <span id="progressText">Initializing...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
+      <div class="progress-steps" id="progressSteps"></div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-section" id="resultSection">
+      <div class="video-wrap" id="videoWrap">
+        <div class="video-placeholder" id="videoPlaceholder">
+          <div class="video-icon"><div class="play-tri"></div></div>
+          <span>Your video is ready!</span>
+        </div>
+      </div>
+      <div class="result-actions">
+        <button class="btn-action primary">⬇ Download MP4</button>
+        <button class="btn-action" onclick="shareVideo()">⎋ Share</button>
+        <button class="btn-action" onclick="resetGen()">↺ New Video</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features">
+  <div class="section-label">WHY RRR</div>
+  <h2>Powerful. <span>Free.</span> No Limits.</h2>
+  <div class="feat-grid">
+    <div class="feat-card">
+      <div class="feat-icon">⚡</div>
+      <h3>Lightning Fast</h3>
+      <p>Generate high-quality videos in seconds using cutting-edge AI models optimized for speed.</p>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">∞</div>
+      <h3>Unlimited Videos</h3>
+      <p>No daily limits, no subscription. Generate as many videos as you want, forever free.</p>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🎨</div>
+      <h3>Multiple Styles</h3>
+      <p>Cinematic, anime, 3D, realistic, watercolor — choose from dozens of visual styles.</p>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🔒</div>
+      <h3>No Account Needed</h3>
+      <p>No email, no password, no tracking. Just open, type, generate. Your privacy matters.</p>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">📥</div>
+      <h3>Free Download</h3>
+      <p>Download your videos in MP4 format, up to 4K resolution. Yours to keep forever.</p>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🌐</div>
+      <h3>Open Source</h3>
+      <p>Fully open source on GitHub. Fork it, contribute, or self-host your own instance.</p>
+    </div>
+  </div>
+</section>
+
+<!-- GALLERY -->
+<section class="gallery" id="gallery">
+  <div class="section-label">COMMUNITY GALLERY</div>
+  <h2>Made with <span>RRR</span></h2>
+  <div class="vid-grid">
+    <div class="vid-thumb" onclick="usePrompt('A golden sunset over mountain peaks, cinematic pan')">
+      <span class="vid-emoji">🌅</span>
+      <span class="vid-tag">Cinematic</span>
+      <div class="overlay"><div class="vid-label">Golden mountain sunset</div></div>
+    </div>
+    <div class="vid-thumb" onclick="usePrompt('An anime girl walking through a cherry blossom forest in spring')">
+      <span class="vid-emoji">🌸</span>
+      <span class="vid-tag">Anime</span>
+      <div class="overlay"><div class="vid-label">Cherry blossom walk</div></div>
+    </div>
+    <div class="vid-thumb" onclick="usePrompt('Futuristic city at night with neon lights and flying cars')">
+      <span class="vid-emoji">🌆</span>
+      <span class="vid-tag">3D Render</span>
+      <div class="overlay"><div class="vid-label">Neon cyberpunk city</div></div>
+    </div>
+    <div class="vid-thumb" onclick="usePrompt('Ocean waves crashing on a rocky shore, slow motion, photorealistic')">
+      <span class="vid-emoji">🌊</span>
+      <span class="vid-tag">Realistic</span>
+      <div class="overlay"><div class="vid-label">Slow motion ocean</div></div>
+    </div>
+    <div class="vid-thumb" onclick="usePrompt('A dragon flying over a fantasy castle at dusk, epic shot')">
+      <span class="vid-emoji">🐉</span>
+      <span class="vid-tag">Fantasy</span>
+      <div class="overlay"><div class="vid-label">Dragon over castle</div></div>
+    </div>
+    <div class="vid-thumb" onclick="usePrompt('Abstract geometric shapes morphing and flowing in bright colors')">
+      <span class="vid-emoji">🎭</span>
+      <span class="vid-tag">Abstract</span>
+      <div class="overlay"><div class="vid-label">Geometric flow</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="stats">
+  <div class="stats-inner">
+    <div>
+      <div class="stat-num">2M+</div>
+      <div class="stat-label">Videos Generated</div>
+    </div>
+    <div>
+      <div class="stat-num">500K</div>
+      <div class="stat-label">Happy Creators</div>
+    </div>
+    <div>
+      <div class="stat-num">100%</div>
+      <div class="stat-label">Free Forever</div>
+    </div>
+    <div>
+      <div class="stat-num">4K</div>
+      <div class="stat-label">Max Resolution</div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section style="position:relative;z-index:1;padding:60px 5% 20px;text-align:center;">
+  <div class="section-label">FAQ</div>
+  <h2>Got <span>Questions?</span></h2>
+</section>
+<section class="faq" id="faq">
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">Is it really free?</div>
+    <div class="faq-a">Yes, 100% free. No credit card, no subscription, no hidden fees. Generate unlimited videos forever at no cost.</div>
+  </div>
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">What AI model does it use?</div>
+    <div class="faq-a">RRR uses open AI video generation APIs to create videos. We are not affiliated with Veo3 or Google — this is an independent, open-source project.</div>
+  </div>
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">Do I need to create an account?</div>
+    <div class="faq-a">No account needed at all. Just open the site, type your prompt, and generate. No email, no password, no sign-up.</div>
+  </div>
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">Can I use the videos commercially?</div>
+    <div class="faq-a">Videos you generate are yours to use. Please check the terms of the underlying AI model for commercial usage rights.</div>
+  </div>
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">How do I self-host or contribute?</div>
+    <div class="faq-a">The full source code is on GitHub. Fork it, add your own API key, and deploy to any static host like GitHub Pages, Vercel, or Netlify.</div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="logo-sm">RRR</div>
+  <p>Free AI Video Generation · Open Source · No Limits</p>
+  <p style="margin-top:16px; display:flex; gap:24px; justify-content:center; flex-wrap:wrap;">
+    <a href="https://github.com" target="_blank">GitHub</a>
+    <a href="#">Privacy</a>
+    <a href="#">Terms</a>
+    <a href="#">API Docs</a>
+  </p>
+  <p style="margin-top:20px; font-size:11px;">© 2025 RRR.free · Open Source Project</p>
+</footer>
+
+<script>
+// Char counter
+const ta = document.getElementById('promptInput');
+const cc = document.getElementById('charCount');
+ta.addEventListener('input', () => cc.textContent = ta.value.length + ' / 600');
+
+// Style chips
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  });
+});
+
+// FAQ toggle
+function toggleFaq(el) {
+  el.classList.toggle('open');
+}
+
+// Scroll to generator
+function scrollToGen() {
+  document.getElementById('generate').scrollIntoView({ behavior: 'smooth' });
+  setTimeout(() => document.getElementById('promptInput').focus(), 600);
+}
+
+// Use prompt from gallery
+function usePrompt(text) {
+  document.getElementById('promptInput').value = text;
+  cc.textContent = text.length + ' / 600';
+  scrollToGen();
+}
+
+// Generate simulation
+const STEPS = [
+  'Analyzing your prompt...',
+  'Building scene composition...',
+  'Rendering keyframes...',
+  'Applying style & lighting...',
+  'Generating motion flow...',
+  'Encoding video...',
+  'Finalizing output...'
+];
+
+let genInterval = null;
+
+function startGenerate() {
+  const prompt = document.getElementById('promptInput').value.trim();
+  if (!prompt) {
+    document.getElementById('promptInput').style.borderColor = 'rgba(224,92,250,0.6)';
+    document.getElementById('promptInput').focus();
+    setTimeout(() => document.getElementById('promptInput').style.borderColor = '', 1500);
+    return;
+  }
+
+  // Hide result, show progress
+  document.getElementById('resultSection').classList.remove('show');
+  document.getElementById('progressSection').classList.add('show');
+  document.getElementById('genBtn').disabled = true;
+
+  const fill = document.getElementById('progressFill');
+  const pText = document.getElementById('progressText');
+  const pPct = document.getElementById('progressPct');
+  const stepsEl = document.getElementById('progressSteps');
+
+  // Build step items
+  stepsEl.innerHTML = STEPS.map((s, i) => `
+    <div class="step-item" id="step-${i}">
+      <div class="step-dot"></div>
+      <span>${s}</span>
+    </div>
+  `).join('');
+
+  let pct = 0;
+  let stepIdx = 0;
+  const totalTime = 6000; // 6 seconds simulation
+  const interval = 80;
+  const increment = 100 / (totalTime / interval);
+
+  if (genInterval) clearInterval(genInterval);
+
+  genInterval = setInterval(() => {
+    pct = Math.min(100, pct + increment + (Math.random() * 0.5));
+    fill.style.width = pct + '%';
+    pPct.textContent = Math.round(pct) + '%';
+
+    const newStep = Math.floor((pct / 100) * STEPS.length);
+    if (newStep > stepIdx && newStep < STEPS.length) {
+      document.getElementById('step-' + stepIdx)?.classList.add('done');
+      document.getElementById('step-' + stepIdx)?.classList.remove('active');
+      stepIdx = newStep;
+      document.getElementById('step-' + stepIdx)?.classList.add('active');
+      pText.textContent = STEPS[stepIdx];
+    }
+
+    if (pct >= 100) {
+      clearInterval(genInterval);
+      STEPS.forEach((_, i) => {
+        const el = document.getElementById('step-' + i);
+        if (el) { el.classList.add('done'); el.classList.remove('active'); }
+      });
+      pText.textContent = 'Video ready!';
+      setTimeout(showResult, 500);
+    }
+  }, interval);
+}
+
+function showResult() {
+  document.getElementById('progressSection').classList.remove('show');
+  document.getElementById('resultSection').classList.add('show');
+  document.getElementById('genBtn').disabled = false;
+
+  // Simulate video with gradient canvas
+  const wrap = document.getElementById('videoWrap');
+  const ph = document.getElementById('videoPlaceholder');
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 800; canvas.height = 450;
+  canvas.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+
+  const ctx = canvas.getContext('2d');
+  const colors = ['#7c5cfa', '#e05cfa', '#5c8afa', '#fa5cbc'];
+  let frame = 0;
+
+  function animate() {
+    frame++;
+    const g = ctx.createLinearGradient(
+      Math.sin(frame * 0.01) * 400 + 400,
+      Math.cos(frame * 0.008) * 200 + 225,
+      Math.cos(frame * 0.012) * 400 + 400,
+      Math.sin(frame * 0.009) * 200 + 225
+    );
+    g.addColorStop(0, colors[Math.floor(frame * 0.02) % colors.length] + '88');
+    g.addColorStop(0.5, colors[Math.floor(frame * 0.015 + 1) % colors.length] + '44');
+    g.addColorStop(1, colors[Math.floor(frame * 0.01 + 2) % colors.length] + '88');
+    ctx.fillStyle = '#05050a';
+    ctx.fillRect(0, 0, 800, 450);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(
+      400 + Math.sin(frame * 0.01) * 80,
+      225 + Math.cos(frame * 0.008) * 60,
+      300 + Math.sin(frame * 0.005) * 60,
+      200 + Math.cos(frame * 0.007) * 40,
+      frame * 0.003, 0, Math.PI * 2
+    );
+    ctx.fill();
+
+    // Overlay text
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.font = 'bold 13px DM Sans, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('AI Generated · ' + document.getElementById('quality').value, 400, 430);
+
+    requestAnimationFrame(animate);
+  }
+
+  wrap.innerHTML = '';
+  wrap.appendChild(canvas);
+  animate();
+}
+
+function resetGen() {
+  document.getElementById('resultSection').classList.remove('show');
+  document.getElementById('progressSection').classList.remove('show');
+  document.getElementById('promptInput').value = '';
+  cc.textContent = '0 / 600';
+  document.getElementById('genBtn').disabled = false;
+  scrollToGen();
+}
+
+function shareVideo() {
+  if (navigator.share) {
+    navigator.share({ title: 'My AI Video from RRR', url: window.location.href });
+  } else {
+    navigator.clipboard.writeText(window.location.href);
+    alert('Link copied to clipboard!');
+  }
+}
+</script>
+</body>
+</html>
